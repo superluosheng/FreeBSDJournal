@@ -1,0 +1,374 @@
+# 虚拟实验室BSD编程研讨会
+**作者：ROLLER ANGEL**
+
+我们的虚拟实验室将由一个FreeBSD主机系统组成，它使用FreeBSD Jails技术，为我们要安装在实验室中的每个系统提供独立的环境来运行服务并履行其职责。这些职责可以是任何数量的事情，比如提供网页服务、存储和检索数据库记录、查询和回答DNS请求、缓存系统更新文件等等。我们的想法是建立一个坚实的基础，使我们的虚拟实验室能够在未来发展。鉴于FreeBSD Jails的本质是提供一个轻量级的系统来容纳我们的服务，我们可以放心地知道，我们可能会发现自己处于任何数量的兔子洞中，不会因为达到资源限制而限制我们的创造力或探索。我们可以为每个想法提供一个独立的环境，而不必担心为支持该想法的发展所需的服务而配置另一个操作系统的费用。我在工作中经历了许多不同的操作系统安装托管方法，在配置新的 jail 时，我感到惊喜。它是如此的环保! 我不再为财务问题和这笔费用将持续多久的问题而烦恼，相反，这只是我不断发展的实验室中的另一个环境，本质上没有最低的月费。我不想搞得太技术化，而在电力、互联网连接和主机硬件成本方面陷入财务困境；是的，我同意这些东西是有成本的，但是一旦它们到位，增加新的主机并不像最初的实验室设置那样需要考虑和支出。我建议重新利用一台现有的机器作为主机，甚至可以是一台笔记本电脑，因为它有一个内置的电池备份，使你有时间在持续停电的情况下优雅地关闭你的系统。在我们的虚拟实验室中，需要多个物理网络接口来连接物理以太网交换机和你的物理主机将使用的以太网电缆和接入点的问题并不是一个实质性的问题。这些接口可以用文本文件中的文字来创建，并且可以创建虚拟以太网电缆来连接我们的虚拟网络的各个部分。
+
+## FreeBSD主机
+这个主机将需要一些网络接口。我们希望主机能有自己的方式来连接互联网。这可以是一个由本地路由器提供的良好的DHCP分配的地址，或者你的主机可以扮演路由器的角色，通过一个调制解调器直接连接到外部世界。无论你的主机如何获得互联网连接，我们都希望有一个额外的网络接口，只用于我们的实验室网络。这个接口的名称可能是**em0，igb0** 或类似的，这取决于网卡驱动程序和安装的接口数量。即使我们没有多个物理网络接口，我们也可以单独做一个网络接口来使用 **cloned_interfaces**。在我的例子中，我正在重新利用一些笔记本电脑。其中一台有一块可用的WiFi卡，我用来连接互联网。这是一台2010年代早期的华硕ROG笔记本电脑。它也有一个内置的以太网端口。在我的X1 Carbon第七代ThinkPad上，没有内置的以太网端口。我只是使用USB端口和我的安卓USB Tethering。然而，我对戴尔Precision笔记本电脑最感兴趣。它是一个伟大的实验室主机，因为它配备了英特尔至强处理器，可以处理128GB的内存和多个NVME硬盘。它的笔记本后面有一个内置的以太网端口，第二个是USB-C加密狗，上面有一个英特尔 *igb0* 以太网端口，我用它作为实验室网络的专用接口。最后，旧塔楼也可以作为主机使用，有一些神奇的PCI网卡，你可以安装多个以太网端口。这里的关键是找到适合你的东西，安装FreeBSD并开始使用我们的虚拟实验室。如果你想获得一些安装和配置FreeBSD的技巧，请看2022年7/8月的FreeBSD杂志中的FreeBSD入门研讨会。
+
+## 虚拟网络设计
+就像在物理服务器世界中，我们在路由器/防火墙系统上有多个物理以太网
+端口，我们可以为我们的实验室路由器/防火墙系统提供多个接口。
+我们可以为我们的实验室路由器/防火墙系统提供多个接口，从现在开始我将其称为网关。这些接口将通过网桥相互连接。想想看，一个以太网
+交换机，网桥提供了类似的功能。而对于我们的
+以太网电缆，我们将使用epair(4)接口。这包括两边，A边和B边。
+我们将A端连接到网桥，B端连接到我们的监狱。这样，所有的监狱都可以通过虚拟网桥相互通信，就像网络中的物理主机通过以太网电缆连接到交换机一样，可以相互通信。网关监狱将有一条额外的虚拟电缆连接到一个单独的网桥，允许连接到实验室外和互联网上。所有监狱都将设置其默认路由，以指向该网关。我们给这个独立的网桥提供连接到外部世界的能力的方法是通过指定一个物理接口作为网桥的成员。同样， 这类似于把以太网电缆插入交换机， 但在这种情况下， 以太网电缆被插入 FreeBSD 主机系统， 然后被虚拟插入网桥。通过这样做，同为网桥成员的其他虚拟以太网线将能够与之通信，并使其数据包在实验室环境中流动。
+让我们把它分解一下，每个监狱使用一种叫做vnet的技术获得自己的网络。我们将FreeBSD主机上的物理接口连接到一个虚拟网桥上，并为我们的实验室网络创建第二个虚拟网桥，该网桥上只有来自实验室监狱的虚拟接口与之相连。然后我们使用路由和防火墙规则来推送数据包，因为我们认为合适。
+
+## 防火墙
+我们将使用PF作为防火墙。FreeBSD Jails的工作方式是，每个监狱都共享主机内核，所以如果有一个内核模块你想在监狱里访问，你只需要允许它，然后在特定监狱的 **jail.conf** 设置中配置访问。看一下 **/etc/defaults/devfs.rules** 文件。为了让我们的网关使用PF防火墙，我们需要将监狱的配置设置为使用该文件中列出的pf规则集。我们稍后将设置自己的自定义devfs规则，并包括 **devfsrules_jail_vnet** 规则中的配置。
+
+## 配置
+现在我们已经涵盖了我们要做的事情，让我们开始做吧。我们从一个运行13.1-RELEASE的FreeBSD主机开始。如上所述，这个主机应该有一个活跃的互联网连接。我们将使用这个连接来下载一些文件，以用于创建我们的监牢。该主机正在运行NTPD，所以它能获得准确的时间。用 **sockstat -46** 检查在主机上监听的任何服务，如果没有使用，就把它关掉。记住，主机应该限制它所做的事情--在我们的实验室里，我们会有很多有趣的事情要做，所以尽你所能限制主机上的服务。我打算亲自用附带的键盘和屏幕登录来管理我的主机，所以我没有在主机上启用SSH。
+现在我们已经准备好启用监狱了。Asimplesysrc jail_enable=YESwilldethetrick.不需要安装任何软件包，监狱管理已经内置于FreeBSD。看看 **/usr/share/examples/jails** 中的README文件，了解一些如何配置监狱的例子。正如你所看到的，有很多方法可以进行监狱配置。我已经做了研究，并挑选了你将在这里看到的配置方法。欢迎你尝试一下其他的方法，看看有什么合适的。如果你真的用其他方法来完成这项任务，请考虑把它写下来，这样别人就可以看到你发现的有用方法，并自己尝试一下。在这一点上，我们已经验证了我们的主机已经为托管监狱做好了准备，并且已经启用了监狱服务，所以我们可以快速 **reboot**，仔细检查主机上是否有最小的服务在监听，然后继续创建我们所有监狱要使用的基本配置。在编辑配置文件时，我们将使用vim，对于基本的编辑任务，你真的只需要知道一些东西，花几分钟时间通过 **vimtutor** 命令中的交互式练习来了解你的方向，你将在短时间内成为vim的新手。
+注意：我们在运行以下所有的命令时都是以root用户的身份进行的。
+
+**编辑jail.conf**
+```
+vim /etc/jail.conf
+```
+
+**将以下内容放入/etc/jail.conf**
+ ```
+$labdir=”/lab”;
+$domain=”lab.bsd.pw”;
+path=”$labdir/$name”;
+host.hostname=”$name.$domain”;
+exec.clean;
+exec.start=”sh /etc/rc”;
+exec.stop=”sh /etc/rc.shutdown”;
+exec.timeout=90;
+stop.timeout=30;
+mount.devfs;
+exec.consolelog=”/var/tmp/${host.hostname}”;
+```
+
+### **base.txz**
+```
+mkdir -p /lab/media/13.1-RELEASE
+cd /lab/media/13.1-RELEASE
+fetch http://ftp.freebsd.org/pub/FreeBSD/releases/amd64/13.1-RELEASE/base.txz
+```
+
+### **Gateway Jail**
+```
+mkdir /lab/gateway
+tar -xpf /lab/media/13.1-RELEASE/base.txz -C /lab/gateway
+```
+
+**编辑jail.conf**
+```
+vim /etc/jail.conf
+```
+
+**添加到文件底部**
+```
+gateway {
+  ip4=inherit;
+}
+```
+
+**可以使用以下可选命令将用户帐户添加到监狱中，在本文中，我们将使用root用户**
+```
+chroot /lab/gateway adduser
+```
+
+**设置jail的root密码**
+```
+chroot /lab/gateway passwd root
+```
+
+**使用OpenDNS服务器设置DNS解析**
+```
+vim /lab/gateway/etc/resolv.conf
+```
+**在resolv.conf中添加以下行**
+```
+nameserver  208.67.222.222
+nameserver  208.67.220.220
+```
+
+**复制主机时区设置**
+```
+cp  /etc/localtime  /lab/gateway/etc/
+```
+
+**创建一个空的文件系统表**
+```
+touch /lab/gateway/etc/fstab
+```
+
+**启动jail**
+```
+jail  -vc  gateway
+```
+
+**登录jail**
+```
+jexec  -l  gateway  login  -f  root
+```
+
+**退出jail登录**
+```
+logout
+```
+
+**列出jails**
+```
+jls
+```
+
+停止jail
+```
+jail  -vr  gateway
+```
+**创建devfs.rules**
+```
+vim  /etc/devfs .rules
+```
+**添加如下行到devfs.rules**
+```
+[devfsrules_jail_gateway=666]
+add  include  $devfsrules_jail_vnet
+add  path   'bpf*'  unhide
+```
+
+**重启devfs**
+```
+service  devfs  restart
+```
+
+**验证devfs rules**
+```
+devfs  rule  showsets
+```
+
+**将我们的新规则集分配给gateway jail**
+```
+vim  /etc/jail .conf
+```
+
+**将以下行添加到gateway｛｝配置块**
+```
+devfs_ruleset=666;
+```
+**重启gateway jail**
+```
+service  jail  restart  gateway
+```
+
+**验证规则集是否应用于gateway jail**
+```
+jls  -j  gateway  devfs_ruleset
+```
+
+**我们希望看到666作为上述命令的输出**
+
+**在主机上加载PF内核模块**
+```
+sysrc  -f  /boot/loader .conf  pf_load=YES kldload  pf
+kldload pf
+```
+
+**在gateway jail上启用pF**
+```
+sysrc  -j  gateway  pf_enable=YES
+```
+
+**在gateway jail上编辑pf.conf**
+```
+vim  /lab/gateway/etc/pf .conf
+```
+
+**添加如下配置**
+```
+ext_if  =  “e0b_gateway”
+int_if  =  “e1b_gateway”
+table  <rfc1918>  const  {  192 . 168 .0 .0/16,  172 . 16 .0 .0/12,  10 .0 .0 .0/8  }
+
+#Allow  anything  on  loopback
+set  skip  on  lo0
+
+#Scrub  all  incoming  traffic
+scrub  in
+no  nat  on  $ext_if  from  $int_if:network  to  <rfc1918>
+
+#NAT  outgoing  traffic
+nat  on  $ext_if  inet  from  $int_if:network  to  any  ->  ($ext_if:0)
+
+#Reject  anything  with  spoofed  addresses
+antispoof  quick  for  {  $int_if,  lo0  }  inet
+
+#Default  to  blocking  incoming  traffic,  but  allowing  outgoing  traffic block  all
+pass  out  all
+
+#Allow  LAN  to  access  the  rest  of  the  world
+pass  in  on  $int_if  from  any  to  any
+block  in  on  $int_if  from  any  to  self
+
+#Allow  LAN  to  ping  us
+pass  in  on  $int_if  inet  proto  icmp  to  self  icmp-type  echoreq
+```
+
+## 配置虚拟网络
+设置一个接口。这里我们使用名为alc0的专用网卡，并将其命名为 **lab0**，作为签名。所有进一步的配置都将使用接口名称lab0，它被分配到的实际物理设备可以通过编辑一行配置来改变。这样，如果我们把实验室搬到另一台主机上，或者在以后添加一个新的网络接口，并使用不同的名称，如 **igb0、re0或em0**，就很容易切换我们的接口。
+```
+sysrc  ifconfig_alc0_name=lab0
+sysrc  ifconfig_lab0=up
+service  netif  restart
+```
+
+### copy the Jail Interface Bridge automation script into our lab scripts directory and make it executable
+```
+mkdir  /lab/scripts
+cp  /usr/share/examples/jails/jib  /lab/scripts/
+chmod  +x  /lab/scripts/jib
+```
+
+### edit jail.conf
+```
+vim  /etc/jail .conf
+```
+
+## 网关 jail.conf
+### 在这一点上，我们准备从继承主机的ip4网络转向使用vnet，从/etc/jail.conf中删除网关{}配置块，用以下内容代替
+```
+gateway  {
+vnet;
+vnet .interface=e0b_$name,  e1b_$name;
+exec .prestart+=”/lab/scripts/jib  addm  $name  lab0  labnet”;
+exec .poststop+=”/lab/scripts/jib  destroy  $name”;
+devfs_ruleset=666;
+}
+```
+
+### 为实验室中的监狱创建内部局域网网络
+```
+sysrc  cloned_interfaces=vlan2
+sysrc  ifconfig_vlan2_name=labnet
+sysrc  ifconfig_labnet=up
+service  netif  restart
+```
+
+###d estroy and recreate gateway
+```
+jail  -vr  gateway
+jail  -vc  gateway
+```
+
+### configure networking for gateway jail
+```
+sysrc  -j  gateway  gateway_enable=YES
+sysrc  -j  gateway  ifconfig_e0b_gateway=SYNCDHCP
+sysrc  -j  gateway  ifconfig_e1b_gateway=”inet  10 .66 .6 . 1/24”
+```
+
+### service  jail  restart  gateway
+```
+jexec  -l  gateway  login  -f  root
+```
+
+### test connectivity
+```
+host  bsd .pw
+ping  -c  3  bsd .pw
+```
+
+### exit the jail
+```
+logout
+```
+
+### create another jail that only has one interface that’s attached to the labnet LAN net- work
+```
+vim  /etc/jail .conf
+```
+
+### add the following to the bottom of the file
+```
+client1  {
+vnet;
+vnet .interface=”e0b_$name”;
+exec .prestart+=”/lab/scripts/jib  addm  $name  labnet”;
+exec .poststop+=”/lab/scripts/jib  destroy  $name”;
+devfs_ruleset=4;
+depend=”gateway”;
+}
+```
+
+**制定new jail的目录结构**
+```
+mkdir  /lab/client1
+tar  -xpf  /lab/media/13 . 1-RELEASE/base .txz  -C  /lab/client1
+```
+
+***设置root密码*
+```
+chroot  /lab/client1  passwd  root
+```
+
+**使用OpenDNS服务器设置DNS解析**
+```
+vim  /lab/client1/etc/resolv .conf
+```
+
+**添加如下行到resolv.conf**
+```
+nameserver  208.67.222.222
+nameserver  208.67.220.220
+```
+
+**复制主机时区设置**
+```
+cp  /etc/localtime  /lab/client1/etc/
+```
+
+**创建一个空的文件系统表**
+```
+touch  /lab/client1/etc/fstab
+start jail
+jail  -vc  client1
+```
+
+**为client1 jail配置网络
+```
+sysrc  -j  client1  ifconfig_e0b_client1=”inet  10.66.6.2/24”
+sysrc  -j  client1  defaultrouter=”10.66 .6.1”
+```
+
+**服务jail重启client1
+```
+sysrc  -j  client1  ifconfig_e0b_client1=”inet  10 .66 .6 .2/24”
+sysrc  -j  client1  defaultrouter=”10 .66 .6 . 1”
+service  jail  restart  client1
+```
+
+**登录jail**
+```
+jexec  -l  client1  login  -f  root
+```
+
+***测试连接性*
+```
+host  bsd .pw
+ping  -c  3  bsd .pw
+ping  -c  3  10.66.6.1
+```
+
+**获取tcsh配置文件示例**
+```
+fetch  -o  .tcshrc  http://bsd .pw/config/tcshrc
+chsh  -s  tcsh
+```
+
+**离开jail**
+```
+logout
+```
+
+下次登录时，由于 tcshrc 的设置，你会有一个绿色的提示，享受吧现在你有了一个虚拟实验室，它有自己的虚拟网络，有一个物理接口用于向外连接互联网。由于我们把这个接口命名为lab0，我们可以很容易地更新它。来吧，试一试。例如，你可以插入一个有互联网连接的安卓手机，WiFi或蜂窝电话都可以，因为两者都可以。在你把手机插入主机后，进入手机的网络设置，启用USB连接。现在将有一个ue0接口可供使用。将 **/etc/rc.conf** 中的 **ifconfig_alc0_name="lab0"** 一行更新为 **ifconfig_ue0_name="lab0"**。重新启动。登录到任一监狱并测试连接性。你的网络已经被换掉了。你的实验室现在可以移动了
+我希望你在跟随这篇文章的过程中感到愉快。我对FreeBSD有着极大的热情，与他人分享我所学到的东西给我带来了快乐。我希望你能在你的实验室里用FreeBSD做一些令人惊奇的事情，我期待着在一个奇妙的BSD会议上与你们中的许多人交谈。
+
+---
+**ROLLER ANGEL** 大部分时间都在帮助人们学习如何使用技术来实现他们的目标。他是一个狂热的FreeBSD系统管理员和Python爱好者，喜欢学习用开源技术--特别是FreeBSD和Python--来解决问题的神奇之处。他坚信，人们可以学习任何他们想学的东西。Roller一直在寻求创造性的解决问题的方法，并乐于接受良好的挑战。他有学习的动力和动机，探索新的想法，并保持他的技能。他喜欢参与研究社区并分享他的想法。
+<br><br>

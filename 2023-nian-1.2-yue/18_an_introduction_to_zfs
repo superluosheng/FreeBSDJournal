@@ -20,45 +20,45 @@ service  zfs  start
 #  egrep   da[0-9] |cd[0-9]    /var/run/dmesg.boot
 ```
 
-输出应识别设备名称，在本指南的其余部分中的例子将使用默认的 SCSI 名称：da0、da1 和 da2。如果硬件不同，请确保使用正确的设备名称来代替。
+这个输出应识别出设备名称，在本指南的其余部分中的例子将使用默认的 SCSI 名称：da0、da1 和 da2。如果硬件不同，请确保使用正确的设备名称来代替。
 
 ## 创建一个单磁盘池
-要使用单个磁盘设备创建一个简单的、非冗余的池。
+使用单个磁盘设备创建一个简单的、非冗余的池。
 ```
 #  zpool  create  example  /dev/da0
 ```
 
-要创建文件供用户在池内浏览。
+创建文件供用户在池内浏览。
 ```
 #  cd  /example
 #  ls
 #  touch  testfile
 ```
 
-可以用ls查看新文件。
+可以用 ls 查看新文件。
 ```
 #  ls  -al
 ```
 
-我们已经可以开始使用更高级的ZFS功能和属性。要在池中创建一个启用了压缩功能的数据集。
+我们已经可以开始使用更高级的 ZFS 功能和属性。在池中创建一个启用了压缩功能的数据集。
 ```
 #  zfs  create  example/compressed
 #  zfs  set  compression=on  example/compressed
 ```
 
-example/compressed数据集现在是一个ZFS压缩文件系统。
+example/compressed 数据集现在是一个 ZFS 压缩文件系统。
 用以下方法禁用压缩。
 ```
 #  zfs  set  compression=off  example/compressed
 ```
 
-要卸载一个文件系统，使用zfs umount，然后用df验证。
+要卸载一个文件系统，使用 zfs umount，然后用 df 验证。
 ```
 #  zfs  umount  example/compressed
 #  df
 ```
 
-确认example/compressed没有被列为输出下的一个挂载文件。该文件系统可以用zfs重新挂载。
+验证 example/compressed没 是否作为挂载文件包含在输出下。该文件系统可以用 zfs重 新挂载。
 ```
 #  zfs  mount  example/compressed
 #  df
@@ -69,12 +69,12 @@ example/compressed数据集现在是一个ZFS压缩文件系统。
 example/compressed  17547008  0  17547008  0%  /example/compressed
 ```
 
-ZFS数据集的创建就像其他文件系统一样，下面的例子创建了一个名为data的新文件系统。
+ZFS 数据集的创建就像其他文件系统一样，下面的例子创建了一个名为data的新文件系统。
 ```
 #  zfs  create  example/data
 ```
 
-使用df查看数据和空间使用情况（为了清晰起见，已经删除了部分输出）。
+使用 df 查看数据和空间使用情况（为了清晰起见，已经删除了部分输出）。
 ```
 #  df
 
@@ -82,7 +82,7 @@ example/    compressed  17547008        0   17547008        0%  /example/compres
 example/    data        17547008        0   17547008        %   /example/data
 ```
 
-因为这些文件系统是建立在ZFS上的，它们从同一个存储池中提取。这消除了对其他文件系统所依赖的卷和分区的需要。
+因为这些文件系统是建立在 ZFS 上的，它们从同一个存储池中提取。这消除了对其他文件系统所依赖的卷和分区的需要。
 
 要销毁文件系统，然后销毁不再需要的池。
 ```
@@ -92,13 +92,13 @@ example/    data        17547008        0   17547008        %   /example/data
 ```
 
 ## RAID-Z
-RAID-Z池需要三个或更多的磁盘，但在一个磁盘发生故障时提供数据丢失的保护。因为ZFS池可以使用多个磁盘，对RAID的支持是文件系统设计中固有的。
-要创建一个RAID-Z池，指定要添加到池中的磁盘。
+RAID-Z 池需要三个或更多的磁盘，但在一个磁盘发生故障时提供数据丢失的保护。因为 ZFS 池可以使用多个磁盘，对 RAID 的支持是文件系统设计中固有的。
+要创建一个 RAID-Z 池，指定要添加到池中的磁盘。
 ```
 #  zpool  create  storage  raidz  da0  da1  da2
 ```
 
-在创建了zpool之后，可以在该池中制作一个新的文件系统。
+在创建了 zpool 之后，可以在该池中制作一个新的文件系统。
 ```
 #  zfs  create  storage/home
 ```
@@ -109,7 +109,7 @@ RAID-Z池需要三个或更多的磁盘，但在一个磁盘发生故障时提�
 #  zfs set compression=gzip  storage/home
 ```
 
-一个RAID-Z池是一个存储关键系统文件的好地方，例如用户的主目录。
+一个 RAID-Z 池是一个存储关键系统文件的好地方，例如用户的主目录。
 ```
 #  cp  -rp  /home/*  /storage/home
 #  rm  -rf  /home  /usr/home
@@ -122,23 +122,23 @@ RAID-Z池需要三个或更多的磁盘，但在一个磁盘发生故障时提�
 #  zfs  snapshot  storage/home@ 11-01-22
 ```
 
-ZFS创建数据集的快照，允许用户备份文件系统，以便将来进行回滚或数据恢复。
+ZFS 创建数据集的快照，允许用户备份文件系统，以便将来进行回滚或数据恢复。
 ```
 #  zfs  rollback  storage/home@ 11-01-22
 ```
 
-要列出所有可用的快照，可以使用zfs list。
+要列出所有可用的快照，可以使用 zfs list。
 ```
 #  zfs  list  -t  snapshot  storage/home
 ```
 
 ## 恢复RAID-Z
-每个软件RAID都有一个监控其状态的方法。使用以下方法查看RAID-Z的状态。
+每个软件 RAID 都有一个监控其状态的方法。使用以下方法查看 RAID-Z 的状态。
 ```
 #  zpool  status  -x
 ```
 
-如果所有池子都是在线的，而且一切正常，则显示消息。
+如果所有池子都是在线的，而且一切正常，则显示这个消息。
 ```
 all  pools  are  healthy
 ```
@@ -156,24 +156,24 @@ config:
      storage   DEGRADED  0    0         0
      raidz1    DEGRADED  0    0         0
           da0  ONLINE    0    0         0
-          da1  ONLINE    0    0         0
+          da1  OFFLINE    0    0         0
           da2  ONLINE    0    0         0
 
 
 errors:  No  known  data  errors
 ```
 
-“OFFLINE” shows the administrator took da1 offline using:
+“OFFLINE” 显示管理员使用以下方式使da1脱机：
 ```
 #  zpool  offline  storage  da1
 ```
 
-立即关闭计算机电源并更换da1：打开计算机电源并返回到池中的da1：
+立即关闭计算机电源并更换 da1：打开计算机电源并将 da1 返回到池中：
 ```
 #  zpool  replace  storage  da1
 ```
 
-接下来，再次检查状态，这次不使用-x来显示所有池：
+接下来，再次检查状态，这次不使用 -x 来显示所有池：
 ```
 #  zpool  status  storage
 pool:  storage
@@ -197,7 +197,7 @@ ZFS 使用校验和来验证存储数据的完整性，可以验证这些数据�
 #  zpool  scrub  storage
 ```
 
-由于大量的输入/输出要求，一次只能运行一次清理。擦除的长度取决于池中存储的数据量。清理完成后，使用 `zpool status` 状态查看状态。
+由于大量的输入/输出要求，一次只能运行一次清理。擦除的长度取决于池中存储的数据量。清理完成后，使用 zpool status 查看状态。
 ```
 #  zpool  status  storage
 pool:  storage
@@ -217,13 +217,11 @@ errors:  No  known  data  errors
 显示上次清理的完成日期有助于决定何时开始另一次清理。常规 scrub 有助于保护数据免受静默式损坏，并确保池的完整性。
 
 ## ZFS管理
-ZFS有两个主要的管理实用程序：zpool实用程序控制池的操作，并允许添加、删除、替换和管理磁盘。zfs实用程序允许创建、销毁和管理数据集，包括文件系统和卷。
-虽然本入门指南不涉及 ZFS 管理，但您可以参考ZFS（8）和zpool（8）了解其他ZFS选项。
+ZFS 有两个主要的管理实用程序：zpool实用程序控制池的操作，并允许添加、删除、替换和管理磁盘。zfs 实用程序允许创建、销毁和管理数据集，包括文件系统和卷。
+虽然本入门指南不涉及 ZFS 管理，但您可以参考 zfs（8）和 zpool（8）了解其他 ZFS 选项。
 
 ## 其他资源
-虽然使用本指南创建的非冗余池和 RAID-Z 池在大多数用例中都可以工作，但更复杂或更专业的系统可能需要进一步的ZFS管理和设置。ZFS 是一个功能强大且可自定义的文件系统本指南几乎没有触及使用它可以做什么的表述
-。`OpenZFS wiki` 有大量关于安装、ZFS 系统管理和手册页面的文档。如果由于系统体系结构的原因需要进行调优，那么可以在 OpenZFS 和 FreeBSD 的wiki 页面上找到 ZFS 调优指南。
+虽然使用本指南创建的非冗余池和 RAID-Z 池在大多数用例中都可以工作，但更复杂或更专业的系统可能需要进一步的 ZFS 管理和设置。ZFS 是一个功能强大且可自定义的文件系统，本指南几乎没有提及使用它可以做什么的表述。OpenZFS wiki 有大量关于安装、ZFS 系统管理和手册页面的文档。如果由于系统体系结构的原因需要进行调优，那么可以在 OpenZFS 和 FreeBSD 的 wiki 页面上找到 ZFS 调优指南。
 
 ---
 **DREW GURKOWSKI**，FreeBSD基金会
-<br><br>

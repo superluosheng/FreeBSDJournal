@@ -60,7 +60,7 @@ PostgreSQL 15包含了这个问题的部分解决方案：它在日志中查找�
 一个小组在 illumos 操作系统的ZFS上大规模使用 PostgreSQL，研究了 **full_page_writes=off** 对恢复 I/O 暂停的影响。他们开发了一种名为 **pg_prefaulter** 的工具作为变通方法。他们发现，由于可预测的I/O暂停，他们的流式复制副本无法跟上主服务器的速度。由于 PostgreSQL 的大多数大规模用户甚至没有设置 **full_page_writes=off** 的选项，因此它们可能是唯一能够看到这种效果的。如果遇到这个问题，**pg_prefaulter** 可能是一个解决方案，直到内置预取可用。
 
 ## 展望未来
-在未来的 PostgreSQL 版本中，区块大小对齐可能会成为一个更大的话题，有望包括提议的直接I/O支持，目前仅以原型形式存在。这与 OpenZFS（pull request #10018）的直接I/O支持的发展不谋而合，这可能需要块大小的一致才能有效地工作（目前的原型恢复到ARC，否则；一些其他的文件系统只是拒绝非对齐的直接I/O）。另一个对数据库非常有用的OpenZFS功能是块克隆（pull request#13392），以及FreeBSD的新系统接口，PostgreSQL应该能够使用它来快速克隆数据库和数据库对象，其粒度比整个数据集更细。
+在未来的 PostgreSQL 版本中，区块大小对齐可能会成为一个更大的话题，有望包括提议的直接 I/O 支持，目前仅以原型形式存在。这与 OpenZFS（pull request #10018）的直接 I/O 支持的发展不谋而合，这可能需要块大小的一致才能有效地工作（目前的原型恢复到 ARC，否则；一些其他的文件系统只是拒绝非对齐的直接 I/O ）。另一个对数据库非常有用的 OpenZFS 功能是块克隆（pull request#13392），以及 FreeBSD 的新系统接口，PostgreSQL 应该能够使用它来快速克隆数据库和数据库对象，其粒度比整个数据集更细。
 
 ---
-**THOMAS MUNRO** 是一名为Microsoft Azure工作的开源数据库黑客，他通常登录到FreeBSD盒子中。
+**THOMAS MUNRO** 是一名为 Microsoft Azure 工作的开源数据库黑客，他通常登录到FreeBSD盒子中。

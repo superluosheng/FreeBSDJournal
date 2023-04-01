@@ -265,6 +265,7 @@ jexec  -l  gateway  login  -f  root
 ```
 
 **测试连通性**
+
 ```
 host  bsd .pw
 ping  -c  3  bsd .pw
